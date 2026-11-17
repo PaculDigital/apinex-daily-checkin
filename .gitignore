@@ -1,0 +1,57 @@
+# ===== RAHASIA — JANGAN PERNAH DI-COMMIT =====
+
+# Kredensial & token
+vault/
+*.key
+license.key
+.env
+.env.*
+*.pem
+*token*.txt
+*token*.json
+*credentials*
+
+# Profil browser (berisi COOKIE & SESI HIDUP)
+profiles/
+**/Default/Cookies
+**/Default/Cookies-journal
+**/Local State
+**/Login Data
+**/Web Data
+**/Preferences
+
+# Log sampah & runtime
+__pycache__/
+*.pyc
+*.log
+*.lock
+SingletonLock
+SingletonSocket
+SingletonCookie
+
+# Laporan hasil jalan (dibuat ulang tiap hari)
+checkin_terakhir.json
+harian_terakhir.log
+cek_*.json
+
+# Tangkapan layar (besar & bisa memuat data akun)
+*.png
+*.jpg
+*.jpeg
+bukti/
+step_*.png
+checkin_*.png
+akun2_*.png
+apikey*.png
+apikeys_*.png
+gagal2_*.png
+
+# Berkas data mentah hasil scraping
+apikey_mentah.json
+apikeys_mentah.json
+*_mentah.json
+hasil_*.json
+
+# Sistem
+.DS_Store
+Thumbs.db
