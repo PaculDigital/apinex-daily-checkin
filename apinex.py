@@ -48,6 +48,24 @@ LOCK_PATH = os.environ.get(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), ".apinex-browser.lock"))
 LOCALE, TZ = "en-US", "Asia/Jakarta"
 
+# ── PROXY (9proxy) ─────────────────────────────────────────────────────
+# APInex menolak KLAIM PROMO / REGISTER dari IP VPS yang sama untuk akun ke-2+.
+# Terbukti 20Nov26: kode promo yang sama sukses lewat 9proxy Indonesia.
+# Cara pakai:  python3 apinex.py register --email x@gmail.com --proxy
+#   atau APINEX_PROXY=1 / APINEX_PROXY_URL di environment.
+# Chrome 146 MEMBUANG kredensial inline di --proxy-server -> auth HARUS lewat
+# ekstensi MV2 (chrome.webRequest.onAuthRequired). Ekstensi sudah terbukti.
+PROXY_EXT = os.environ.get("APINEX_PROXY_EXT", "/opt/data/cache/scratch/proxyext")
+PROXY_URL = os.environ.get("APINEX_PROXY_URL", "http://niceproxy.io:17521")
+USE_PROXY = os.environ.get("APINEX_PROXY", "") not in ("", "0", "false", "no")
+if "--proxy" in sys.argv:
+    USE_PROXY = True
+    if "--proxy-url" in sys.argv:
+        try:
+            PROXY_URL = sys.argv[sys.argv.index("--proxy-url") + 1]
+        except IndexError:
+            sys.exit("FAIL_ARGS --proxy-url butuh nilai")
+
 # Email boleh dari --email atau APINEX_EMAIL. Kalau kosong: akun pertama di vault.
 ACCOUNT_EMAIL = os.environ.get("APINEX_EMAIL", "")
 if "--email" in sys.argv:
@@ -211,16 +229,52 @@ def oauth_flow(page, A):
     print("OAUTH_END:", gp.url[:130])
 
 
+def profil_proxy(email):
+    """Akun ber-proxy pakai profil TERPISAH: sesi Google/proxy tidak tercampur
+    dengan akun yang jalan dari IP VPS."""
+    return profile_for(email) + "_proxy"
+
+
+def cek_ip_indonesia(page):
+    """Verifikasi egress SEBELUM daftar/klaim. Return (ok, teks)."""
+    try:
+        page.goto("http://ip-api.com/json/?fields=countryCode,city,query",
+                  wait_until="domcontentloaded", timeout=60000)
+        txt = body(page, 200)
+        ok = '"countryCode":"ID"' in txt.replace(" ", "")
+        return ok, txt
+    except Exception as e:
+        return False, f"ERR {type(e).__name__}"
+
+
 def per_akun(A, mode):
     """Satu akun: buka profil, cek sesi, (opsional) login/register. True=sesi valid."""
-    profile = profile_for(A["email"])
+    profile = profil_proxy(A["email"]) if USE_PROXY else profile_for(A["email"])
     os.makedirs(profile, exist_ok=True)
     print(f"\nACCOUNT: {A['email']}")
     print(f"PROFILE: {profile}")
 
-    ctx = launch_persistent_context(profile, headless=(mode == "status"),
-                                    humanize=True, locale=LOCALE, timezone=TZ)
+    launch_kw = dict(headless=(mode == "status"), humanize=True,
+                     locale=LOCALE, timezone=TZ)
+    if USE_PROXY:
+        launch_kw.update(proxy=PROXY_URL, extension_paths=[PROXY_EXT])
+        print(f"PROXY: {PROXY_URL} (ekstensi: {PROXY_EXT})")
+
+    ctx = launch_persistent_context(profile, **launch_kw)
     try:
+        # Proxy dipasang: WAJIB buktikan egress Indonesia dulu. Kalau tidak ID,
+        # APInex akan menolak SENYAP (modal tertutup, spins/akun 0, tanpa error)
+        # dan kita akan salah menyimpulkan "kode habis" / "akun sudah ada".
+        if USE_PROXY:
+            p_ip = ctx.new_page()
+            ok_ip, txt_ip = cek_ip_indonesia(p_ip)
+            p_ip.close()
+            print("IP_KELUAR:", txt_ip)
+            if not ok_ip:
+                print("FAIL_IP bukan Indonesia — BATAL sebelum menyentuh APInex")
+                return False
+            print("IP_OK Indonesia")
+
         page = ctx.new_page()
         ok, b = logged_in(page)
         print("SESSION:", "VALID" if ok else "NONE")
