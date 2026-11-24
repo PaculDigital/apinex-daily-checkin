@@ -29,7 +29,7 @@ case "$MODE" in
   *)       SCRIPT="$DIR/apinex.py";         BATAS=300  ;;
 esac
 
-exec docker exec -e HOME=/tmp/cbhome2 -e CLOAKBROWSER_LICENSE_KEY="$LIC" \
+exec docker exec --user hermes -e HOME=/tmp/cbhome2 -e CLOAKBROWSER_LICENSE_KEY="$LIC" \
   hermes bash -c "
   pgrep Xvfb >/dev/null || (Xvfb :97 -screen 0 1920x1080x24 >/tmp/xvfb97.log 2>&1 &)
   sleep 2

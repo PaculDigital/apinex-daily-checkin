@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Pembungkus host untuk apinex.py (register/login/status) dan
+# apinex_checkin.py (check-in harian). Urus Xvfb, license, docker exec.
+#
+# Pakai:
+#   ./apinex status
+#   ./apinex login    [--email a@gmail.com]
+#   ./apinex register [--email b@gmail.com]
+#   ./apinex checkin  [--email a@gmail.com] [--dry] [--jeda 45]
+set -euo pipefail
+
+LIC="$(cat /opt/data/home/.cloakbrowser/license.key)"
+PY_IN_CONTAINER=/opt/data/services/cloakbrowser/.venv/bin/python3
+DIR=/opt/data/services/apinex-run
+MODE="${1:-status}"; shift || true
+
+# ── PROXY: SUDAH DICABUT (17 Nov 2026) ──────────────────────────────────
+# Dulu di sini ada APINEX_PROXY=9proxy residensial dengan alasan "Cloudflare
+# menolak IP VPS". TERBUKTI SALAH: token Turnstile terbit karena cookie
+# `apinex_user_session` ada di profil, bukan karena IP. Jangan pasang kembali.
+
+# Teruskan sisa argumen (mis. --email x@gmail.com)
+ARGS="$MODE"
+for a in "$@"; do ARGS="$ARGS $a"; done
+
+# Pilih mesin sesuai mode. checkin = proses banyak akun, butuh waktu lebih.
+case "$MODE" in
+  checkin) SCRIPT="$DIR/apinex_checkin.py"; BATAS=3600 ;;
+  *)       SCRIPT="$DIR/apinex.py";         BATAS=300  ;;
+esac
+
+exec docker exec -e HOME=/tmp/cbhome2 -e CLOAKBROWSER_LICENSE_KEY="$LIC" \
+  hermes bash -c "
+  pgrep Xvfb >/dev/null || (Xvfb :97 -screen 0 1920x1080x24 >/tmp/xvfb97.log 2>&1 &)
+  sleep 2
+  DISPLAY=:97 timeout $BATAS $PY_IN_CONTAINER $SCRIPT $ARGS
+" 2>&1 | grep -viE 'error:dbus|failed to connect' || true
